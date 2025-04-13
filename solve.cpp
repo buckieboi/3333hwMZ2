@@ -1,133 +1,168 @@
-
-
-
 #include <string>
-#include <unordered_set>
-#include "minpriorityqueue.h" // Includes <vector>, <unordered_map>, <utility>
+#include "minpriorityqueue.h" // Already includes <vector>, <unordered_map>, <utility>
 #include "solve.h"
 #include "vertex.h"
 
 using namespace std;
 
-// For the mandatory running time, assume that the time for
-// operations of queue, unordered_set, and map are O(1). 
-// (They are for average-case, but not worst-case).
-//
-// For the mandatory running time below, s is the length of 
-// the input string representing the maze.
-// 
-// For a complete description of the maze string 
-// and maze solution formats, see the assignment pdf.
-//
-//
-// Returns a string representing a shortest solution to the maze.
-// Undefined behavior if the maze is not valid or has no solution.
-//
-// Must run in O(s*log(s)) time.
-
-
-
-
-
-//confused what to do with this as its in the solve.h file.
-// oh does this sent the string over? then we can parse it.
-string solve(string maze);
-
-
-
-
-// Pseudocode:
-// Convert the maze string into a list of row strings.
-// This function splits the maze input (by newline) and returns a vector where each element is a row.
-static vector<string> parseMaze(const string& maze) {
+// Helper function: Splits the maze string (by newline) into a vector of row strings.
+static vector<string> parseMaze(const string &maze) {
     vector<string> grid;
     size_t pos = 0;
     while (pos < maze.size()) {
         size_t newline = maze.find('\n', pos);
         if (newline == string::npos)
             break;
-        grid.emplace_back(maze.substr(pos, newline - pos));
+        grid.push_back(maze.substr(pos, newline - pos));
         pos = newline + 1;
     }
     return grid;
 }
 
+// Helper function for portal cost: returns the digit value found at the vertex's position.
+static int getPortalCost(Vertex *v, const vector<string> &grid) {
+    return grid[v->row][v->col] - '0';
+}
 
+string solve(string maze) {
+    // Parse the maze into a grid.
+    vector<string> grid = parseMaze(maze);
+    int rowCount = grid.size();
+    if (rowCount == 0)
+        return maze;
+    int colCount = grid[0].size();
 
-// 4. Build the graph by linking each Vertex to its valid (non-wall) adjacent neighbors
-for (int r = 0; r < rowCount; r++) {
-    for (int c = 0; c < colCount; c++) {
-        if (vertices[r][c] != nullptr) {
-            // Up
-            if (r > 0 && vertices[r - 1][c] != nullptr)
-                vertices[r][c]->neighs.push_back(vertices[r - 1][c]);
-            // Down
-            if (r < rowCount - 1 && vertices[r + 1][c] != nullptr)
-                vertices[r][c]->neighs.push_back(vertices[r + 1][c]);
-            // Left
-            if (c > 0 && vertices[r][c - 1] != nullptr)
-                vertices[r][c]->neighs.push_back(vertices[r][c - 1]);
-            // Right
-            if (c < colCount - 1 && vertices[r][c + 1] != nullptr)
-                vertices[r][c]->neighs.push_back(vertices[r][c + 1]);
+    // Allocate a 2D vector of Vertex pointers for all non-wall cells.
+    vector<vector<Vertex*>> vertices(rowCount, vector<Vertex*>(colCount, 0));
+    // Portal map: maps digit (portal) to a vector of corresponding Vertex pointers.
+    unordered_map<char, vector<Vertex*>> portalMap;
+
+    // Identify the two exits on the boundary and allocate vertices.
+    // (Assuming exactly two exits exist.)
+    Vertex *startVertex = 0, *goalVertex = 0;
+    for (int r = 0; r < rowCount; r++) {
+        for (int c = 0; c < colCount; c++) {
+            char ch = grid[r][c];
+            if (ch != '#') {
+                // Create a Vertex for the cell.
+                vertices[r][c] = new Vertex(r, c);
+                vertices[r][c]->row = r;
+                vertices[r][c]->col = c;
+                // When the cell is on the boundary and is not a wall, treat it as an exit.
+                if ((r == 0 || r == rowCount - 1 || c == 0 || c == colCount - 1) && ch != '#') {
+                    if (startVertex == 0)
+                        startVertex = vertices[r][c];
+                    else if (goalVertex == 0)
+                        goalVertex = vertices[r][c];
+                }
+                // If the cell is a digit (portal), record it.
+                if (ch >= '0' && ch <= '9')
+                    portalMap[ch].push_back(vertices[r][c]);
+            }
         }
     }
-}
 
+    if (!startVertex || !goalVertex) {
+        // Cleanup and return original maze if no exits found.
+        for (int r = 0; r < rowCount; r++)
+            for (int c = 0; c < colCount; c++)
+                delete vertices[r][c];
+        return maze;
+    }
 
-// If no path is found, cleanup and return the original maze
-if (!found) {
-    for (auto &row : vertices)
-        for (auto &v : row)
-            delete v;
-    return maze;
-}
+    // Build adjacent edges for up/down/left/right moves.
+    // For adjacent moves, we use a cost of 1.
+    for (int r = 0; r < rowCount; r++) {
+        for (int c = 0; c < colCount; c++) {
+            if (vertices[r][c] != 0) {
+                if (r > 0 && vertices[r-1][c] != 0)
+                    vertices[r][c]->neighs.push_back(make_pair(vertices[r-1][c], 1));
+                if (r < rowCount - 1 && vertices[r+1][c] != 0)
+                    vertices[r][c]->neighs.push_back(make_pair(vertices[r+1][c], 1));
+                if (c > 0 && vertices[r][c-1] != 0)
+                    vertices[r][c]->neighs.push_back(make_pair(vertices[r][c-1], 1));
+                if (c < colCount - 1 && vertices[r][c+1] != 0)
+                    vertices[r][c]->neighs.push_back(make_pair(vertices[r][c+1], 1));
+            }
+        }
+    }
 
+    // Add portal edges.
+    for (auto &entry : portalMap) {
+        if (entry.second.size() == 2) {
+            Vertex *v1 = entry.second[0];
+            Vertex *v2 = entry.second[1];
+            int portalCost = getPortalCost(v1, grid); // Same cost for both endpoints.
+            v1->neighs.push_back(make_pair(v2, portalCost));
+            v2->neighs.push_back(make_pair(v1, portalCost));
+        }
+    }
 
-    // 6. Backtrack from the exit to the entrance, marking the path with 'o'
-    for (Vertex* cur = goalVertex; ; cur = parent[cur]) {
-        grid[cur->row][cur->col] = 'o';
+    // Run Dijkstra's algorithm using MinPriorityQueue.
+    // Use unordered_maps to track the best cost and parent for each vertex.
+    unordered_map<Vertex*, int> costSoFar;
+    unordered_map<Vertex*, Vertex*> parent;
+    MinPriorityQueue<Vertex*> frontier;
+    frontier.push(startVertex, 0);
+    costSoFar[startVertex] = 0;
+    parent[startVertex] = 0;
+
+    bool found = false;
+    while (frontier.size() > 0) {
+        Vertex *current = frontier.front();
+        frontier.pop();
+        int currentCost = costSoFar[current];
+
+        if (current == goalVertex) {
+            found = true;
+            break;
+        }
+
+        // Explore each neighbor.
+        for (int i = 0; i < current->neighs.size(); i++) {
+            Vertex *next = current->neighs[i].first;
+            int edgeCost = current->neighs[i].second;
+            int newCost = currentCost + edgeCost;
+            if (costSoFar.find(next) == costSoFar.end()) {
+                costSoFar[next] = newCost;
+                parent[next] = current;
+                frontier.push(next, newCost);
+            } else if (newCost < costSoFar[next]) {
+                costSoFar[next] = newCost;
+                parent[next] = current;
+                frontier.decrease_key(next, newCost);
+            }
+        }
+    }
+
+    if (!found) {
+        // No solution found; clean up and return the original maze.
+        for (int r = 0; r < rowCount; r++)
+            for (int c = 0; c < colCount; c++)
+                delete vertices[r][c];
+        return maze;
+    }
+
+    // Backtrack from goal to start and mark the path with 'o'.
+    // copy grid to solutionGrid for marking.
+    vector<string> solutionGrid = grid;
+    for (Vertex *cur = goalVertex; cur != 0; cur = parent[cur]) {
+        solutionGrid[cur->row][cur->col] = 'o';
         if (cur == startVertex)
             break;
     }
 
-    // 7. Cleanup dynamically allocated Vertex objects
-    for (auto &row : vertices) {
-        for (auto &v : row) {
-            delete v;
+    // Clean up: delete all allocated vertices.
+    for (int r = 0; r < rowCount; r++) {
+        for (int c = 0; c < colCount; c++) {
+            delete vertices[r][c];
         }
     }
-    
-    // 8. Rebuild the solution string from the modified grid
-    string solution;
-    for (const auto& rowStr : grid) {
-        solution += rowStr + "\n";
+
+    // Reconstruct the solution string.
+    string solution = "";
+    for (int r = 0; r < rowCount; r++) {
+        solution += solutionGrid[r] + "\n";
     }
     return solution;
 }
-
-// find the smallest number, entrance of the portal on the grid.
-// should we just can left to right top to bottom for it?
-
-// 1. Parse the maze and find the two exit positions and all portal pairs.
-void findSmallestportal(vertex[r][c]){
-    //starts at 1st maze cell the looks throughout maze for the portals.
-    entrancePortal = 9
-    for(int i; i< grid.size(); i++){ //rows 
-        for(int i; i< grid.size(); i++){ //columns
-            //lets use ascii values to tell if its 0-9
-            // if its '#' or ' ' skip for now.
-            if( vertex[r][c] == '0-9'){
-                if( vertex[r][c] <= entrancePortal){
-                    entrancePortal = vertex[r][c]
-                }
-            }
-        }
-        // i need 2 forloops to search the rows and coloumns right?
-    }
-    
-    // i need 2 forloops to search the rows and coloumns right?
-}
-
-//do i need to find the exait after finding the entrance? find the mastching number 
-// duplicate in the graph?
