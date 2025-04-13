@@ -4,8 +4,8 @@
 #include <string>
 #include <unordered_set>
 #include "minpriorityqueue.h" // Includes <vector>, <unordered_map>, <utility>
-#include solve.h
-#include vertex.h
+#include "solve.h"
+#include "vertex.h"
 
 using namespace std;
 
@@ -112,31 +112,22 @@ if (!found) {
 // 1. Parse the maze and find the two exit positions and all portal pairs.
 void findSmallestportal(vertex[r][c]){
     //starts at 1st maze cell the looks throughout maze for the portals.
-    entrancePortal = 0
+    entrancePortal = 9
     for(int i; i< grid.size(); i++){ //rows 
         for(int i; i< grid.size(); i++){ //columns
             //lets use ascii values to tell if its 0-9
             // if its '#' or ' ' skip for now.
             if( vertex[r][c] == '0-9'){
-                entrancePortal = vertex[r][c]
+                if( vertex[r][c] <= entrancePortal){
+                    entrancePortal = vertex[r][c]
+                }
             }
-    
         }
-    
         // i need 2 forloops to search the rows and coloumns right?
-
     }
-
+    
     // i need 2 forloops to search the rows and coloumns right?
-
 }
-// 2. Initialize your min-priority queue with the start exit, cost = 0.
-// 3. While the queue is not empty:
-//    a. Pop the position with the lowest cost.
-//    b. If it's the goal exit, you're done!
-//    c. For each of the 4 directions:
-//        - If it's a space or portal:
-//            - Calculate the cost (1 for space, portal value if it's a portal).
-//            - Push the neighbor into the queue with updated cost if it’s a better path.
-//    d. If it's a portal, also add the other portal position to the queue.
-// 4. After reaching the goal, backtrack from the goal to the start using the parent map and mark those as 'o'.
+
+//do i need to find the exait after finding the entrance? find the mastching number 
+// duplicate in the graph?
